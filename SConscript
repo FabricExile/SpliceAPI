@@ -19,17 +19,17 @@ Import(
 if FABRIC_BUILD_OS == "Windows":
   baseCPPDefines = [
     '_SCL_SECURE_NO_WARNINGS=1',
-    '_ITERATOR_DEBUG_LEVEL=0',
+    '_ITERATOR_DEBUG_LEVEL=2',
     '_WIN32_WINNT=0x0600',
   ]
   baseCPPFlags = [
-    '/EHsc', 
+    '/EHsc',
     '/wd4624',
   ]
   baseLinkFlags = ['chkstk.obj']
   spliceDebugFlags = {
     'CCFLAGS': baseCPPFlags + ['/Od', '/Z7', '/MTd', '/DEBUG'],
-    'CPPDEFINES': baseCPPDefines + ['_ITERATOR_DEBUG_LEVEL=0', '_DEBUG', 'DEBUG'],
+    'CPPDEFINES': baseCPPDefines + ['_ITERATOR_DEBUG_LEVEL=2', '_DEBUG', 'DEBUG'],
     'LINKFLAGS': baseLinkFlags + ['/DEBUG', '/NODEFAULTLIB:LIBCMT'],
   }
   spliceReleaseFlags = {
@@ -57,7 +57,7 @@ if FABRIC_BUILD_OS == "Darwin":
       '-mmacosx-version-min=10.7',
       '-stdlib=libstdc++',
       '-fno-omit-frame-pointer',
-      ]      
+      ]
     flags['LINKFLAGS'] += [
       '-mmacosx-version-min=10.7',
       '-stdlib=libstdc++',
