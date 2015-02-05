@@ -19,12 +19,13 @@ LoggingFunc LoggingImpl::sErrorLogFunc = NULL;
 CompilerErrorFunc LoggingImpl::sCompilerErrorFunc = NULL;
 LoggingFunc LoggingImpl::sKLReportFunc = NULL;
 StatusFunc LoggingImpl::sKLStatusFunc = NULL;
+SlowOperationFunc LoggingImpl::sSlowOperationFunc = NULL;
 std::string LoggingImpl::mErrorLog;
 bool LoggingImpl::sTimersEnabled = false;
 std::map<std::string, LoggingImpl::TimeInfo> LoggingImpl::sTimers;
 
 #ifdef _WIN32
-  LARGE_INTEGER gFrequency;
+  long double gSecondsPerTick = 0.0;
 #endif
 
 void LoggingImpl::setLogFunc(LoggingFunc func)
@@ -50,6 +51,11 @@ void LoggingImpl::setKLReportFunc(LoggingFunc func)
 void LoggingImpl::setKLStatusFunc(StatusFunc func)
 {
   sKLStatusFunc = func;
+}
+
+void LoggingImpl::setSlowOperationFunc(SlowOperationFunc func)
+{
+  sSlowOperationFunc = func;
 }
 
 void LoggingImpl::log(const std::string & message) 
@@ -133,7 +139,7 @@ void LoggingImpl::disableTimers()
   sTimersEnabled = false;
 }
 
-void LoggingImpl::resetTimer(const std::string & name)
+void LoggingImpl::resetTimer(const char * name)
 {
   if(!sTimersEnabled)
     return;
@@ -144,7 +150,7 @@ void LoggingImpl::resetTimer(const std::string & name)
   it->second.running = false;
 }
 
-void LoggingImpl::startTimer(const std::string & name)
+void LoggingImpl::startTimer(const char * name)
 {
   if(!sTimersEnabled)
     return;
@@ -164,10 +170,16 @@ void LoggingImpl::startTimer(const std::string & name)
   it->second.running = true;
 
   #ifdef _WIN32
-    QueryPerformanceFrequency(&gFrequency);
+    if(!gSecondsPerTick)
+    {
+      LARGE_INTEGER ticksPerSecond;
+      QueryPerformanceFrequency( &ticksPerSecond );
+      gSecondsPerTick = 1.0 / double(ticksPerSecond.QuadPart);
+    }
+
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
-    it->second.start = t.QuadPart * 1000.0 / gFrequency.QuadPart;
+    it->second.start = double(t.QuadPart) * gSecondsPerTick;
   #else
     timeval t;
     gettimeofday(&t, NULL);
@@ -175,7 +187,7 @@ void LoggingImpl::startTimer(const std::string & name)
   #endif
 }
 
-void LoggingImpl::stopTimer(const std::string & name)
+void LoggingImpl::stopTimer(const char * name)
 {
   if(!sTimersEnabled)
     return;
@@ -189,7 +201,7 @@ void LoggingImpl::stopTimer(const std::string & name)
   #ifdef _WIN32
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
-    long double portion = t.QuadPart * 1000.0 / gFrequency.QuadPart - it->second.start;
+    long double portion = double(t.QuadPart) * gSecondsPerTick - it->second.start;
     it->second.elapsed += portion;
   #else
     timeval t;
@@ -197,25 +209,23 @@ void LoggingImpl::stopTimer(const std::string & name)
     long double portion = t.tv_sec * 1000.0 + t.tv_usec / 1000.0 - it->second.start;
     it->second.elapsed += portion;
   #endif
-
-
 }
 
-void LoggingImpl::logTimer(const std::string & name)
+void LoggingImpl::logTimer(const char * name)
 {
   if(!sTimersEnabled)
     return;
+  stopTimer(name);
   std::map<std::string, TimeInfo>::iterator it = sTimers.find(name);
   if(it == sTimers.end())
   {
-    log("Timer "+name+" not found!");
+    log("Timer "+std::string(name)+" not found!");
     return;
   }
-  stopTimer(name);
 
   std::stringstream ss;
   ss << it->second.elapsed;
-  log("Timer "+name+": "+ss.str()+"s.");
+  log("Timer "+it->second.name+": "+ss.str()+"s.");
 }
 
 unsigned int LoggingImpl::getNbTimers()
@@ -237,7 +247,7 @@ char const * LoggingImpl::getTimerName(unsigned int index)
   return it->second.name.c_str();
 }
 
-LoggingImpl::AutoTimerImpl::AutoTimerImpl(std::string name) {
+LoggingImpl::AutoTimerImpl::AutoTimerImpl(const char * name) {
   mName = name;
   LoggingImpl::startTimer(mName);
 }

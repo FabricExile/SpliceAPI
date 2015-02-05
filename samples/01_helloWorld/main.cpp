@@ -14,7 +14,7 @@ int main( int argc, const char* argv[] )
   graph.constructDGNode();
 
   // report versions
-  printf("Core Version: %s\n", FabricSplice::GetCoreVersion());
+  printf("Core Version: %s\n", FabricSplice::GetFabricVersionStr());
   printf("Splice Version: %s\n", FabricSplice::GetSpliceVersion());
 
   // create an operator

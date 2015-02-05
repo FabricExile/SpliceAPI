@@ -50,6 +50,16 @@ void klStatusFunc(void *userdata, char const *destData, uint32_t destLength,
     (*statusFunc)(topic.c_str(), topic.length(), message.c_str(), message.length());
 }
 
+void klSlowOperationFunc(
+  void *userdata,
+  char const *descCStr, uint32_t descLength
+  )
+{
+  SlowOperationFunc slowOperationFunc = LoggingImpl::getSlowOperationFunc();
+  if ( slowOperationFunc )
+    (*slowOperationFunc)( descCStr, descLength );
+}
+
 const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore::ClientOptimizationType optType)
 {
   if(sClient == NULL)
@@ -78,6 +88,7 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
       options.extPaths = 0;
     }
     options.numExtsToLoad = 0;
+    options.slowOperationCallback = &klSlowOperationFunc;
 
     sClient = new FabricCore::Client(&klReportFunc, 0, &options);
 
@@ -164,12 +175,14 @@ DGGraphImpl::DGGraphImpl(
 ) {
 
   setName(name);
+  mOriginalName = getName();
   mDGNodeDefaultName = "DGNode";
   mRequiresEval = false;
   mIsPersisting = false;
   mIsClearing = true;
   mUsesEvalContext = false;
   mUserPointer = NULL;
+  mIsReferenced = false;
 
   try
   {
@@ -331,7 +344,12 @@ stringMap DGGraphImpl::getDGGraphNamesMap()
 {
   stringMap result;
   for(size_t i=0;i<sAllDGGraphs.size();i++)
-    result.insert(stringPair(sAllDGGraphs[i]->getName(), ""));
+  {
+    if(result.find(sAllDGGraphs[i]->getName()) == result.end())
+      result.insert(stringPair(sAllDGGraphs[i]->getName(), ""));
+    if(result.find(sAllDGGraphs[i]->mOriginalName) == result.end())
+      result.insert(stringPair(sAllDGGraphs[i]->mOriginalName, ""));
+  }
   return result;
 }
 
@@ -723,6 +741,7 @@ bool DGGraphImpl::addDGNodeMember(
   FabricCore::Variant defaultValue,
   const std::string & dgNode, 
   const std::string & extension,
+  bool autoInitObjects, 
   std::string * errorOut
 ) {
   FabricCore::DGNode node = getDGNode(dgNode);
@@ -766,7 +785,7 @@ bool DGGraphImpl::addDGNodeMember(
 
     // Initialize the Object here immedietly because persistence will load data into the value
     FabricCore::RTVal memberRTVal = node.getMemberSliceValue(name.c_str(), 0);
-    if(memberRTVal.isObject() && memberRTVal.isNullObject())
+    if(memberRTVal.isObject() && memberRTVal.isNullObject() && autoInitObjects)
     {
       memberRTVal = FabricSplice::constructObjectRTVal(rt.c_str());
       if(!memberRTVal.isNullObject())
@@ -1874,6 +1893,28 @@ void DGGraphImpl::saveKLOperatorSourceCode(const std::string & name, const std::
   fclose(file);
 }
 
+bool DGGraphImpl::isKLOperatorFileBased(const std::string & name, std::string * errorOut)
+{
+  std::string opName = getRealDGOperatorName(name.c_str());
+  return mKLOperatorFileNames.find(opName) != mKLOperatorFileNames.end();  
+}
+
+char const * DGGraphImpl::getKLOperatorFilePath(const std::string & name, std::string * errorOut)
+{
+  std::string opName = getRealDGOperatorName(name.c_str());
+  if(mKLOperatorFileNames.find(opName) != mKLOperatorFileNames.end())
+    return mKLOperatorFileNames.find(opName)->second.c_str();
+
+  DGOperatorIt opIt = sDGOperators.find(opName);
+  if(opIt == sDGOperators.end())
+  {
+    LoggingImpl::reportError("Operator '"+name+"' doesn't exist.", errorOut);
+    return NULL;
+  }
+
+  return opIt->second.op.getFilename();
+}
+
 void DGGraphImpl::setKLOperatorFilePath(const std::string & name, const std::string & filePath, const std::string & entry, std::string * errorOut)
 {
   std::string opName = getRealDGOperatorName(name.c_str());
@@ -1884,13 +1925,19 @@ void DGGraphImpl::setKLOperatorFilePath(const std::string & name, const std::str
     return;
   }
 
-  std::ifstream file(filePath.data());
+  std::string resolvedFilePath = resolveEnvironmentVariables(filePath);
+  std::ifstream file(resolvedFilePath.data());
 
   if(!file)
   {
     LoggingImpl::reportError("Invalid filePath '"+filePath+"'", errorOut);
     return;
   }
+
+  if(mKLOperatorFileNames.find(opName) == mKLOperatorFileNames.end())
+    mKLOperatorFileNames.insert(stringPair(opName, filePath));
+  else
+    mKLOperatorFileNames.find(opName)->second = filePath;
   
   std::stringstream buffer;
   buffer << file.rdbuf();
@@ -1972,10 +2019,6 @@ bool DGGraphImpl::validateKLOperator(const std::string & opName, bool logValidat
   // put this into has the right members
   for(size_t i=0;i<sAllDGGraphs.size();i++)
   {
-    // if there's only on operator, reset the mUsesEvalContext
-    if(sAllDGGraphs[i]->mBindings.size() == 1)
-      sAllDGGraphs[i]->mUsesEvalContext = false;
-
     for(size_t j=0;j<sAllDGGraphs[i]->mBindings.size();j++)
     {
       DGBindingData & data = sAllDGGraphs[i]->mBindings[j];
@@ -1990,6 +2033,10 @@ bool DGGraphImpl::validateKLOperator(const std::string & opName, bool logValidat
       FabricCore::DGOperator op = binding.getOperator();
       if(op.getName() != opName)
         continue;
+
+      // if there's only on operator, reset the mUsesEvalContext
+      if(bindings.getCount() == 1)
+        sAllDGGraphs[i]->mUsesEvalContext = false;
 
       for(size_t k=0;k<opIt->second.params.size();k++)
       {
@@ -2289,15 +2336,18 @@ void DGGraphImpl::setMemberPersistence(const std::string &name, bool persistence
   mMemberPersistenceOverrides[name] = persistence ? 1 : 0;
 }
 
-bool DGGraphImpl::memberPersistence(const std::string &name, const std::string &type)
+bool DGGraphImpl::memberPersistence(const std::string &name, const std::string &type, bool * requiresStorage)
 {
   bool persistence = false;
   DGPortImplPtr port = getDGPort(name);
   if(port)
     persistence = !port->isArray() && (port->isShallow() || port->getDataType() == "String") && !port->isObject() && !port->isInterface();    
   if(mMemberPersistenceOverrides.find(name) != mMemberPersistenceOverrides.end()){
+    if(requiresStorage)
+      *requiresStorage = persistence != (mMemberPersistenceOverrides[name] != 0);
     persistence = mMemberPersistenceOverrides[name] != 0;
-  }
+  } else if(requiresStorage)
+    *requiresStorage = false;
   return persistence;
 }
 
@@ -2308,26 +2358,43 @@ void DGGraphImpl::getDGPortInfo(FabricCore::Variant & portInfo, FabricCore::RTVa
   {
     FabricCore::Variant valueVar = FabricCore::Variant::CreateDict();
     valueVar.setDictValue("name", FabricCore::Variant::CreateString(it->second->getName()));
-    valueVar.setDictValue("node", FabricCore::Variant::CreateString(it->second->getDGNodeName()));
-    valueVar.setDictValue("graph", FabricCore::Variant::CreateString(getName().c_str()));
+
+    // don't persist the node if it is the default node
+    if(mDGNodes.size() > 1)
+      valueVar.setDictValue("node", FabricCore::Variant::CreateString(it->second->getDGNodeName()));
+
     std::string dataType = it->second->getDataType();
     if(it->second->isArray())
       dataType += "[]";
     valueVar.setDictValue("type", FabricCore::Variant::CreateString(dataType.c_str()));
-    valueVar.setDictValue("autoInitObjects", FabricCore::Variant::CreateBoolean(it->second->doesAutoInitObjects()));
-    valueVar.setDictValue("member", FabricCore::Variant::CreateString(it->second->getMember()));
+
+    // don't persist the auto init defaults
+    if(!it->second->doesAutoInitObjects())
+      valueVar.setDictValue("autoInitObjects", FabricCore::Variant::CreateBoolean(false));
+
+    // don't persist the member if it matches the port name
+    if(std::string(it->second->getMember()) != it->second->getName())
+      valueVar.setDictValue("member", FabricCore::Variant::CreateString(it->second->getMember()));
+
     if(it->second->getMode() == DGPortImpl::Mode_IN)
-      valueVar.setDictValue("mode", FabricCore::Variant::CreateString("in"));
+    {
+      // don't persist in, it's the default
+      // valueVar.setDictValue("mode", FabricCore::Variant::CreateString("in"));
+    }
     else if(it->second->getMode() == DGPortImpl::Mode_OUT)
       valueVar.setDictValue("mode", FabricCore::Variant::CreateString("out"));
     else
       valueVar.setDictValue("mode", FabricCore::Variant::CreateString("io"));
+
     FabricCore::Variant options = it->second->getAllOptions();
     if(options.isDict())
       valueVar.setDictValue("options", options);
 
-    bool persistence = memberPersistence(it->second->getName(), dataType);
-    valueVar.setDictValue("persistence", FabricCore::Variant::CreateBoolean(persistence));
+    // only save non-standard persistence flags
+    bool requiresStorage = false;
+    bool persistence = memberPersistence(it->second->getName(), dataType, &requiresStorage);
+    if(requiresStorage)
+      valueVar.setDictValue("persistence", FabricCore::Variant::CreateBoolean(persistence));
 
     FabricCore::Variant defaultDataVar;
     if(persistence)
@@ -2401,68 +2468,103 @@ FabricCore::Variant DGGraphImpl::getPersistenceDataDict(const PersistenceInfo * 
     persistenceContextRT.setMember("filePath", FabricSplice::constructStringRTVal(info->filePath.getStringData()));
   }
 
-  FabricCore::Variant dgNodeListVar = FabricCore::Variant::CreateArray();
-  FabricCore::Variant portData = FabricCore::Variant::CreateDict();
-  for(DGNodeIt it = mDGNodes.begin(); it != mDGNodes.end(); it++)
+  // only persist the splice base path, if applicable
+  if(mIsReferenced)
   {
-    FabricCore::Variant dgNodeVar = FabricCore::Variant::CreateDict();
-    dgNodeVar.setDictValue("name", FabricCore::Variant::CreateString(it->first.c_str()));
-
-    FabricCore::DGNode node = it->second.node;
-
-    dgNodeVar.setDictValue("dependencies", node.getDependencies_Variant());
-
-    FabricCore::Variant bindingListVar = FabricCore::Variant::CreateArray();
-
-    FabricCore::DGBindingList bindings = node.getBindingList();
-    for(uint32_t i=0;i<bindings.getCount();i++)
-    {
-      FabricCore::DGBinding binding = bindings.getBinding(i);
-      FabricCore::DGOperator op = binding.getOperator();
-
-      FabricCore::Variant bindingVar = FabricCore::Variant::CreateDict();
-      FabricCore::Variant opVar = FabricCore::Variant::CreateDict();
-
-      std::string opName = getPrettyDGOperatorName(op.getName());
-
-      opVar.setDictValue("name", FabricCore::Variant::CreateString(opName.c_str()));
-      opVar.setDictValue("entry", FabricCore::Variant::CreateString(op.getEntryPoint()));
-      opVar.setDictValue("filename", FabricCore::Variant::CreateString(op.getFilename()));
-
-      // check if we have operator source code in the DCC UI somewhere
-      std::string klCode;
-      if(sGetOperatorSourceCodeFunc)
-      {
-        const char * klCodeCStr = (*sGetOperatorSourceCodeFunc)(getName().c_str(), opName.c_str());
-        if(klCodeCStr)
-          klCode = klCodeCStr;
-      }
-      if(klCode.length() == 0)
-      {
-        klCode = getKLOperatorSourceCode(opName);
-      }
-      opVar.setDictValue("kl", FabricCore::Variant::CreateString(klCode.c_str()));
-      if(i < it->second.opPortMaps.size())
-        opVar.setDictValue("portmap", it->second.opPortMaps[i]);
-
-      // todo: we might want to store the parameter layout at a some point
-      bindingVar.setDictValue("operator", opVar);
-      bindingListVar.arrayAppend(bindingVar);
-    }
-    dgNodeVar.setDictValue("bindings", bindingListVar);
-
-    dgNodeListVar.arrayAppend(dgNodeVar);
+    dataVar.setDictValue("spliceFilePath", FabricCore::Variant::CreateString(mFilePath.c_str()));
   }
-  dataVar.setDictValue("nodes", dgNodeListVar);
+  else
+  {
+    FabricCore::Variant dgNodeListVar = FabricCore::Variant::CreateArray();
+    FabricCore::Variant portData = FabricCore::Variant::CreateDict();
+    for(DGNodeIt it = mDGNodes.begin(); it != mDGNodes.end(); it++)
+    {
+      FabricCore::Variant dgNodeVar = FabricCore::Variant::CreateDict();
 
-  FabricCore::Variant extensionListVar = FabricCore::Variant::CreateArray();
-  for(stringIt it = mLoadedExtensions.begin(); it != mLoadedExtensions.end(); it++)
-    extensionListVar.arrayAppend(FabricCore::Variant::CreateString(it->first.c_str()));
-  dataVar.setDictValue("extensions", extensionListVar);
+      // only save non-default names
+      if(it->first != "DGNode")
+        dgNodeVar.setDictValue("name", FabricCore::Variant::CreateString(it->first.c_str()));
 
-  FabricCore::Variant portInfo;
-  getDGPortInfo(portInfo, persistenceContextRT);
-  dataVar.setDictValue("ports", portInfo);
+      FabricCore::DGNode node = it->second.node;
+
+      FabricCore::Variant dependenciesVar = node.getDependencies_Variant();
+      if(dependenciesVar.isArray())
+      {
+        if(dependenciesVar.getArraySize() > 0)
+          dgNodeVar.setDictValue("dependencies", dependenciesVar);
+      }
+
+      FabricCore::Variant bindingListVar = FabricCore::Variant::CreateArray();
+
+      FabricCore::DGBindingList bindings = node.getBindingList();
+      for(uint32_t i=0;i<bindings.getCount();i++)
+      {
+        FabricCore::DGBinding binding = bindings.getBinding(i);
+        FabricCore::DGOperator op = binding.getOperator();
+
+        FabricCore::Variant bindingVar = FabricCore::Variant::CreateDict();
+        FabricCore::Variant opVar = FabricCore::Variant::CreateDict();
+
+        std::string opName = getPrettyDGOperatorName(op.getName());
+
+        opVar.setDictValue("name", FabricCore::Variant::CreateString(opName.c_str()));
+
+        // only save entry points which differ from the op name
+        if(opName != op.getEntryPoint())
+          opVar.setDictValue("entry", FabricCore::Variant::CreateString(op.getEntryPoint()));
+
+        // either store the filename with the code, or just the filename.
+        // this should be based on a user decision, if the kl file is based 
+        // on an external file, or not.
+        stringIt fileNameIt = mKLOperatorFileNames.find(op.getName());
+        if(fileNameIt == mKLOperatorFileNames.end())
+        {
+          // check if we have operator source code in the DCC UI somewhere
+          std::string klCode;
+          if(sGetOperatorSourceCodeFunc)
+          {
+            const char * klCodeCStr = (*sGetOperatorSourceCodeFunc)(getName().c_str(), opName.c_str());
+            if(klCodeCStr)
+              klCode = klCodeCStr;
+          }
+          if(klCode.length() == 0)
+          {
+            klCode = getKLOperatorSourceCode(opName);
+          }
+          opVar.setDictValue("kl", FabricCore::Variant::CreateString(klCode.c_str()));
+        }
+        else
+        {
+          opVar.setDictValue("filename", FabricCore::Variant::CreateString(fileNameIt->second.c_str()));
+        }
+
+        if(i < it->second.opPortMaps.size())
+        {
+          bool hasContent = !FabricCore::Variant::DictIter(it->second.opPortMaps[i]).isDone();
+          if(hasContent)
+            opVar.setDictValue("portmap", it->second.opPortMaps[i]);
+        }
+
+        // todo: we might want to store the parameter layout at a some point
+        bindingVar.setDictValue("operator", opVar);
+        bindingListVar.arrayAppend(bindingVar);
+      }
+      dgNodeVar.setDictValue("bindings", bindingListVar);
+
+      dgNodeListVar.arrayAppend(dgNodeVar);
+    }
+    dataVar.setDictValue("nodes", dgNodeListVar);
+
+    FabricCore::Variant extensionListVar = FabricCore::Variant::CreateArray();
+    for(stringIt it = mLoadedExtensions.begin(); it != mLoadedExtensions.end(); it++)
+      extensionListVar.arrayAppend(FabricCore::Variant::CreateString(it->first.c_str()));
+    if(mLoadedExtensions.size() > 0)
+      dataVar.setDictValue("extensions", extensionListVar);
+
+    FabricCore::Variant portInfo;
+    getDGPortInfo(portInfo, persistenceContextRT);
+    dataVar.setDictValue("ports", portInfo);
+  }
 
   mIsPersisting = false;
 
@@ -2478,6 +2580,7 @@ bool DGGraphImpl::setFromPersistenceDataDict(
   DGGraphImplPtr thisGraph,
   const FabricCore::Variant & dict, 
   PersistenceInfo * info,
+  const char * baseFilePath,
   std::string * errorOut
 ) {
 
@@ -2496,6 +2599,14 @@ bool DGGraphImpl::setFromPersistenceDataDict(
       mMetaData = metaDataVar->getStringData();
   if(mMetaData.length() > 0)
     dataVar.setDictValue("metaData", FabricCore::Variant::CreateString(mMetaData.c_str()));
+
+  // check if this is a referenced splice file
+  const FabricCore::Variant * spliceFilePathVar = dataVar.getDictValue("spliceFilePath");
+  if(spliceFilePathVar)
+  {
+    std::string spliceFilePath = spliceFilePathVar->getStringData();
+    return loadFromFile(thisGraph, spliceFilePath, info, true, errorOut);
+  }
 
   const FabricCore::Variant * nodesVar = dataVar.getDictValue("nodes");
   if(!nodesVar)
@@ -2565,10 +2676,10 @@ bool DGGraphImpl::setFromPersistenceDataDict(
   {
     const FabricCore::Variant * nodeVar = nodesVar->getArrayElement(i);
     const FabricCore::Variant * nodeNameVar = nodeVar->getDictValue("name");
-    if(!nodeNameVar)
-      return LoggingImpl::reportError("JSON data is corrupt, 'node' element doesn't contain 'name' element.", errorOut);
+    std::string dgNodeName = "DGNode";
+    if(nodeNameVar)
+      dgNodeName = nodeNameVar->getStringData();
 
-    std::string dgNodeName = nodeNameVar->getStringData();
     if(!constructDGNode(dgNodeName, errorOut))
       return false;
   }
@@ -2582,20 +2693,28 @@ bool DGGraphImpl::setFromPersistenceDataDict(
     const FabricCore::Variant * valueTypeVar = valueVar->getDictValue("type");
     if(!valueTypeVar)
       return LoggingImpl::reportError("JSON data is corrupt, 'valueinterface' element doesn't contain 'type' element.", errorOut);
+
+    std::string dgNodeName = "DGNode";
     const FabricCore::Variant * valueDGNodeVar = valueVar->getDictValue("node");
-    if(!valueDGNodeVar)
-      return LoggingImpl::reportError("JSON data is corrupt, 'valueinterface' element doesn't contain 'node' element.", errorOut);
+    if(valueDGNodeVar)
+      dgNodeName = valueDGNodeVar->getStringData();
+
+    std::string memberName = valueNameVar->getStringData();
     const FabricCore::Variant * valueMemberVar = valueVar->getDictValue("member");
-    if(!valueMemberVar)
-      return LoggingImpl::reportError("JSON data is corrupt, 'valueinterface' element doesn't contain 'member' element.", errorOut);
+    if(valueMemberVar)
+      memberName = valueMemberVar->getStringData();
+
+    std::string modeStr = "in";
     const FabricCore::Variant * valueModeVar = valueVar->getDictValue("mode");
-    if(!valueModeVar)
-      return LoggingImpl::reportError("JSON data is corrupt, 'valueinterface' element doesn't contain 'mode' element.", errorOut);
-    const FabricCore::Variant * autoInitObjectsVar = valueVar->getDictValue("autoInitObjects");
+    if(valueModeVar)
+      modeStr = valueModeVar->getStringData();
+
     bool autoInitObjects = true;
+    const FabricCore::Variant * autoInitObjectsVar = valueVar->getDictValue("autoInitObjects");
     if(autoInitObjectsVar)
       if(autoInitObjectsVar->isBoolean())
         autoInitObjects = autoInitObjectsVar->getBoolean();
+
     const FabricCore::Variant * optionsVar = valueVar->getDictValue("options");
 
     const FabricCore::Variant * defaultValueVar = valueVar->getDictValue("default");
@@ -2605,12 +2724,14 @@ bool DGGraphImpl::setFromPersistenceDataDict(
     // backwards compatibility for <= 1.12
     if(!defaultValueVar && !valuePersistenceVar && !valuePersistenceDataVar)
     {
-      std::string dgNodeName = valueDGNodeVar->getStringData();
       for(uint32_t j=0;j<nodesVar->getArraySize();j++)
       {
         const FabricCore::Variant * nodeVar = nodesVar->getArrayElement(j);
+        std::string valueDgNodeName = "DGNode";
         const FabricCore::Variant * nodeNameVar = nodeVar->getDictValue("name");
-        if(dgNodeName == nodeNameVar->getStringData())
+        if(nodeNameVar)
+          valueDgNodeName = nodeNameVar->getStringData();
+        if(dgNodeName == valueDgNodeName)
         {
           const FabricCore::Variant * membersVar = nodeVar->getDictValue("members");
           if(membersVar)
@@ -2644,21 +2765,23 @@ bool DGGraphImpl::setFromPersistenceDataDict(
 
     // try a second time without a default value
     bool addMemberResult = addDGNodeMember(
-      valueMemberVar->getStringData(), 
+      memberName.c_str(), 
       valueTypeVar->getStringData(), 
       defaultValue, 
-      valueDGNodeVar->getStringData(),
+      dgNodeName.c_str(),
       "",
+      autoInitObjects,
       errorOut
     );
     if(!addMemberResult)
     {
       addMemberResult = addDGNodeMember(
-        valueMemberVar->getStringData(), 
+        memberName.c_str(), 
         valueTypeVar->getStringData(), 
         FabricCore::Variant(), 
-        valueDGNodeVar->getStringData(),
+        dgNodeName.c_str(),
         "",
+        autoInitObjects,
         errorOut
       );
       if(addMemberResult)
@@ -2670,7 +2793,7 @@ bool DGGraphImpl::setFromPersistenceDataDict(
     if(valuePersistenceVar)
     {
       bool persistence = valuePersistenceVar->getBoolean();
-      setMemberPersistence(valueMemberVar->getStringData(), persistence);
+      setMemberPersistence(memberName.c_str(), persistence);
     }
     else
     {
@@ -2679,7 +2802,7 @@ bool DGGraphImpl::setFromPersistenceDataDict(
       if(shouldPersistVar)
       {
         bool shouldPersist = shouldPersistVar->getBoolean();
-        setMemberPersistence(valueMemberVar->getStringData(), shouldPersist);
+        setMemberPersistence(memberName.c_str(), shouldPersist);
       }
     }
 
@@ -2687,9 +2810,9 @@ bool DGGraphImpl::setFromPersistenceDataDict(
     {
       if(valuePersistenceDataVar->isString())
       {
-        FabricCore::DGNode dgNode = getDGNode(valueDGNodeVar->getStringData());
+        FabricCore::DGNode dgNode = getDGNode(dgNodeName.c_str());
         if(dgNode.isValid()){
-          FabricCore::RTVal memberRTVal = dgNode.getMemberSliceValue(valueMemberVar->getStringData(), 0);
+          FabricCore::RTVal memberRTVal = dgNode.getMemberSliceValue(memberName.c_str(), 0);
           if(memberRTVal.isValid() && !memberRTVal.isNullObject())
           {
             FabricCore::RTVal objectRtVal = FabricSplice::constructRTVal("Object", 1, &memberRTVal);
@@ -2717,7 +2840,6 @@ bool DGGraphImpl::setFromPersistenceDataDict(
     }
 
     DGPortImpl::Mode mode = DGPortImpl::Mode_IO;
-    std::string modeStr = valueModeVar->getStringData();
     if(modeStr == "in")
       mode = DGPortImpl::Mode_IN;
     else if(modeStr == "out")
@@ -2726,9 +2848,9 @@ bool DGGraphImpl::setFromPersistenceDataDict(
     if(!addDGPort(
       thisGraph,
       valueNameVar->getStringData(), 
-      valueMemberVar->getStringData(), 
+      memberName.c_str(), 
       mode,
-      valueDGNodeVar->getStringData(), 
+      dgNodeName.c_str(), 
       autoInitObjects,
       errorOut
     )) return false;
@@ -2754,7 +2876,10 @@ bool DGGraphImpl::setFromPersistenceDataDict(
     if(!bindingsVar)
       return LoggingImpl::reportError("JSON data is corrupt, 'node' element doesn't contain 'bindings' element.", errorOut);
 
-    std::string dgNodeName = nodeNameVar->getStringData();
+    std::string dgNodeName = "DGNode";
+    if(nodeNameVar)
+      dgNodeName = nodeNameVar->getStringData();
+
     const FabricCore::Variant * dependenciesVar = nodeVar->getDictValue("dependencies");
     if(dependenciesVar)
     {
@@ -2776,34 +2901,57 @@ bool DGGraphImpl::setFromPersistenceDataDict(
       if(!operatorVar)
         return LoggingImpl::reportError("JSON data is corrupt, 'binding' element doesn't contain 'operator' element.", errorOut);
 
+
       const FabricCore::Variant * operatorNameVar = operatorVar->getDictValue("name");
       if(!operatorNameVar)
         return LoggingImpl::reportError("JSON data is corrupt, 'operator' element doesn't contain 'name' element.", errorOut);
-      const FabricCore::Variant * operatorFileNameVar = operatorVar->getDictValue("filename");
-      if(!operatorFileNameVar)
-        return LoggingImpl::reportError("JSON data is corrupt, 'operator' element doesn't contain 'filename' element.", errorOut);
-      const FabricCore::Variant * operatorKLVar = operatorVar->getDictValue("kl");
-      if(!operatorKLVar)
-        return LoggingImpl::reportError("JSON data is corrupt, 'operator' element doesn't contain 'kl' element.", errorOut);
-      const FabricCore::Variant * operatorEntryVar = operatorVar->getDictValue("entry");
-      const FabricCore::Variant * opPortMapVar = operatorVar->getDictValue("portmap");
+      std::string opName = operatorNameVar->getStringData();
 
-      std::string klCode = operatorKLVar->getStringData();
-      std::string entry = operatorNameVar->getStringData();
+      std::string fileNameStr = opName+".kl";
+      const FabricCore::Variant * operatorFileNameVar = operatorVar->getDictValue("filename");
+      if(operatorFileNameVar)
+        fileNameStr = operatorFileNameVar->getStringData();
+
+      const FabricCore::Variant * operatorEntryVar = operatorVar->getDictValue("entry");
+      std::string entry = opName;
       if(operatorEntryVar)
         if(operatorEntryVar->isString())
           entry = operatorEntryVar->getStringData();
-      std::string filename = operatorFileNameVar->getStringData();
 
-      std::ifstream file(filename.c_str());
+      std::string klCode = "operator "+entry+"() {}";
+      const FabricCore::Variant * operatorKLVar = operatorVar->getDictValue("kl");
+      bool fileNeedsToExist = true;
+      if(operatorKLVar)
+      {
+        klCode = operatorKLVar->getStringData();;
+        fileNeedsToExist = false;
+      }
+
+      const FabricCore::Variant * opPortMapVar = operatorVar->getDictValue("portmap");
+
+      std::string resolvedFilePath = resolveEnvironmentVariables(fileNameStr);
+      std::ifstream file(resolvedFilePath.c_str());
+      if(!file && baseFilePath)
+      {
+        resolvedFilePath = resolveRelativePath(baseFilePath, resolvedFilePath);
+        file.open(resolvedFilePath.c_str());
+      }
+
+      bool isFileBased = false;
       if(file)
       {
         std::stringstream buffer;
         buffer << file.rdbuf();
         klCode = buffer.str();
+        isFileBased = true;
+      }
+      else if(fileNeedsToExist)
+      {
+        LoggingImpl::logError("The KL file '"+fileNameStr+"' for KL operator '"+opName+"' cannot be found.");
+        LoggingImpl::clearError();
+        continue;
       }
 
-      std::string opName = operatorNameVar->getStringData();
       if(!constructKLOperator(
         opName.c_str(),
         klCode.c_str(), 
@@ -2822,9 +2970,18 @@ bool DGGraphImpl::setFromPersistenceDataDict(
         continue;
       }
 
+      if(isFileBased)
+      {
+        std::string realOpName = getRealDGOperatorName(opName.c_str());
+        if(mKLOperatorFileNames.find(realOpName) == mKLOperatorFileNames.end())
+          mKLOperatorFileNames.insert(stringPair(realOpName, fileNameStr));
+        else
+          mKLOperatorFileNames.find(realOpName)->second = fileNameStr;
+      }
+
       DGOperatorIt opIt = sDGOperators.find(getRealDGOperatorName(opName.c_str()));
       if(opIt != sDGOperators.end())
-        opIt->second.op.setFilename(filename.c_str());
+        opIt->second.op.setFilename(fileNameStr.c_str());
     }
   }
 
@@ -2835,10 +2992,11 @@ bool DGGraphImpl::setFromPersistenceDataDict(
 bool DGGraphImpl::setFromPersistenceDataJSON(
   DGGraphImplPtr thisGraph, 
   const std::string & json, 
-  PersistenceInfo * info, 
+  PersistenceInfo * info,
+  const char * baseFilePath,
   std::string * errorOut
 ) {
-  return setFromPersistenceDataDict(thisGraph, FabricCore::Variant::CreateFromJSON(json.c_str()), info, errorOut);
+  return setFromPersistenceDataDict(thisGraph, FabricCore::Variant::CreateFromJSON(json.c_str()), info, baseFilePath, errorOut);
 }
 
 bool DGGraphImpl::saveToFile(const std::string & filePath, const PersistenceInfo * info, std::string * errorOut)
@@ -2864,13 +3022,16 @@ bool DGGraphImpl::loadFromFile(
   DGGraphImplPtr thisGraph,
   const std::string & filePath, 
   PersistenceInfo * info,
+  bool asReferenced,
   std::string * errorOut
 ) {
   if(!thisGraph)
     return LoggingImpl::reportError("Parameter thisGraph is not valid.", errorOut);
   if(thisGraph.get() != this)
     return LoggingImpl::reportError("Parameter thisGraph does not refer to this graph.", errorOut);
-  FILE * file = fopen(filePath.c_str(), "rb");
+
+  std::string resolvedFilePath = resolveEnvironmentVariables(filePath);
+  FILE * file = fopen(resolvedFilePath.c_str(), "rb");
   if(!file)
     return LoggingImpl::reportError("Invalid filePath '"+filePath+"'", errorOut);
 
@@ -2889,11 +3050,36 @@ bool DGGraphImpl::loadFromFile(
   std::string json = buffer;
   free(buffer);
 
-  if(!setFromPersistenceDataJSON(thisGraph, json, info, errorOut))
+  mIsReferenced = asReferenced;
+  mFilePath = filePath;
+
+  if(!setFromPersistenceDataJSON(thisGraph, json, info, filePath.c_str(), errorOut))
     return false;
   LoggingImpl::log("Loaded graph '"+getName()+"' from "+filePath);
 
   return true;
+}
+
+bool DGGraphImpl::reloadFromFile(DGGraphImplPtr thisGraph, PersistenceInfo * info, std::string * errorOut)
+{
+  if(!isReferenced())
+  {
+    LoggingImpl::logError("The DGGraph '"+getName()+"' is not referenced, this it cannot be reloaded.");
+    return false;
+  }
+
+  clear();
+  return loadFromFile(thisGraph, mFilePath, info, true, errorOut);
+}
+
+bool DGGraphImpl::isReferenced()
+{
+  return mIsReferenced;
+}
+
+const char * DGGraphImpl::getReferencedFilePath()
+{
+  return mFilePath.c_str();
 }
 
 bool DGGraphImpl::requireEvaluate()
@@ -2921,4 +3107,51 @@ char const * DGGraphImpl::getPrettyDGOperatorName(const char * name) const
     return it->first.c_str();
   }
   return name;
+}
+
+std::string DGGraphImpl::resolveRelativePath(const std::string & baseFile, const std::string text)
+{
+  if(baseFile.length() == 0)
+    return text;
+
+  int lastSlashPos = baseFile.rfind('/');
+  int lastBackSlashPos = baseFile.rfind('\\');
+  if(lastSlashPos != std::string::npos && lastBackSlashPos != std::string::npos)
+    lastSlashPos = lastSlashPos > lastBackSlashPos ? lastSlashPos : lastBackSlashPos;
+
+  if(lastSlashPos != std::string::npos)
+    return baseFile.substr(0, lastSlashPos + 1) + text;
+
+  return text;
+}
+
+std::string DGGraphImpl::resolveEnvironmentVariables(const std::string text)
+{
+  std::string output;
+  for(unsigned int i=0;i<text.length()-1;i++)
+  {
+    if(text[i] == '$' && text[i+1] == '{')
+    {
+      int closePos = text.find('}', i);
+      if(closePos != std::string::npos)
+      {
+        std::string envVarName = text.substr(i+2, closePos - i - 2);
+        const char * envVarValue = getenv(envVarName.c_str());
+        if(envVarValue != NULL)
+        {
+          output += envVarValue;
+          i = (unsigned int)closePos;
+          continue;
+        }
+      }
+    }
+    output += text[i];
+  }
+
+  if(text.length() > 0)
+  {
+    if(text[text.length()-1] != '}')
+      output += text[text.length()-1];
+  }
+  return output;
 }

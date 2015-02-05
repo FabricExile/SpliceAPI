@@ -17,6 +17,9 @@ namespace FabricSpliceImpl
   /// a function to receive information from a KL status message
   typedef void(*StatusFunc)(const char * topic, unsigned int topicLength, const char * message, unsigned int messageLength);
 
+  /// a function to receive notification when a slow operation starting or finishing
+  typedef void(*SlowOperationFunc)( const char *descCStr, uint32_t descLength );
+
   class LoggingImpl
   {
   public:
@@ -41,6 +44,12 @@ namespace FabricSpliceImpl
 
     /// gets the callback for KL queueStatusMessage statements
     static StatusFunc getKLStatusFunc() { return sKLStatusFunc; }
+
+    /// sets the callback for slow operations
+    static void setSlowOperationFunc( SlowOperationFunc func );
+
+    /// gets the callback for slow operations
+    static SlowOperationFunc getSlowOperationFunc() { return sSlowOperationFunc; }
 
     /// logs to the logFunc callback
     static void log(const std::string & message);
@@ -73,16 +82,16 @@ namespace FabricSpliceImpl
     static void disableTimers();
 
     /// reset a timer
-    static void resetTimer(const std::string & name);
+    static void resetTimer(const char * name);
 
     /// start a timer
-    static void startTimer(const std::string & name);
+    static void startTimer(const char * name);
 
     /// stop a timer and accumulate the time
-    static void stopTimer(const std::string & name);
+    static void stopTimer(const char * name);
 
     /// log a given timer
-    static void logTimer(const std::string & name);
+    static void logTimer(const char * name);
 
     /// return the number of existing timers
     static unsigned int getNbTimers();
@@ -94,11 +103,11 @@ namespace FabricSpliceImpl
     class AutoTimerImpl
     {
     public:
-      AutoTimerImpl(std::string name);
+      AutoTimerImpl(const char * name);
       ~AutoTimerImpl();
 
     private:
-      std::string mName;
+      const char * mName;
     };
 
   private:
@@ -107,6 +116,7 @@ namespace FabricSpliceImpl
     static CompilerErrorFunc sCompilerErrorFunc;
     static LoggingFunc sKLReportFunc;
     static StatusFunc sKLStatusFunc;
+    static SlowOperationFunc sSlowOperationFunc;
     static std::string mErrorLog;
     struct TimeInfo {
       bool running;

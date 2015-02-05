@@ -70,6 +70,9 @@ if FABRIC_BUILD_TYPE == 'Debug':
 else:
   parentEnv.MergeFlags(spliceReleaseFlags)
 
+if FABRIC_BUILD_OS == 'Windows':
+  parentEnv.Append(PDB='${TARGET.base}.pdb')
+
 baseCapiFlags = {
   'CPPPATH': [os.path.join(FABRIC_DIR, 'include')],
   'CPPDEFINES': [

@@ -135,8 +135,17 @@ The SPLICECAPI provides several global functions. These can be used to initializ
       // is finished with accessing the SPLICECAPI.
       void Finalize();
 
+      // Returns the major component of the Fabric version
+      uint8_t GetFabricVersionMaj();
+
+      // Returns the minor component of the Fabric version
+      uint8_t GetFabricVersionMin();
+
+      // Returns the revision component of the Fabric version
+      uint8_t GetFabricVersionRev();
+
       // Returns the Core Version number as a string
-      char const * GetCoreVersion();
+      char const * GetFabricVersionVersionStr();
 
       // Returns the Splice Version number as a string
       char const * GetSpliceVersion();
@@ -401,7 +410,7 @@ Class Outline
         class AutoTimer
         {
         public:
-          AutoTimer(const char * name);
+          AutoTimer(std::string const &name);
           ~AutoTimer();
 
         private:
@@ -1511,6 +1520,12 @@ Class Outline
         // saves the source code of a specific FabricCore::DGOperator to file
         void saveKLOperatorSourceCode(const char * name, const char * filePath);
 
+        // returns true if the KL operator is using a file
+        bool isKLOperatorFileBased(const char * name);
+
+        // gets the filepath of a specific FabricCore::DGOperator
+        char const * getKLOperatorFilePath(const char * name);
+
         // loads the content of the file and sets the code
         void setKLOperatorFilePath(const char * name, const char * filePath, const char * entry = "");
 
@@ -1596,16 +1611,25 @@ Class Outline
         std::string getPersistenceDataJSON(const PersistenceInfo * info = NULL);
 
         // constructs the node based on a variant dict
-        bool setFromPersistenceDataDict(const FabricCore::Variant & dict, PersistenceInfo * info = NULL);
+        bool setFromPersistenceDataDict(const FabricCore::Variant & dict, PersistenceInfo * info = NULL, const char * baseFilePath = NULL);
 
         // constructs the node based on a JSON string
-        bool setFromPersistenceDataJSON(const char * json, PersistenceInfo * info = NULL);
+        bool setFromPersistenceDataJSON(const char * json, PersistenceInfo * info = NULL, const char * baseFilePath = NULL);
 
         // persists the node description into a JSON file
         bool saveToFile(const char * filePath, const PersistenceInfo * info = NULL);
 
         // constructs the node based on a persisted JSON file
-        bool loadFromFile(const char * filePath, PersistenceInfo * info = NULL);
+        bool loadFromFile(const char * filePath, PersistenceInfo * info = NULL, bool asReferenced = false);
+
+        // reloads an already referenced graph from file
+        bool reloadFromFile(PersistenceInfo * info = NULL);
+
+        // returns true if this graph is referenced from a file
+        bool isReferenced();
+
+        // returns the splice file path referenced by this graph
+        const char * getReferencedFilePath();
 
         // marks a member to be persisted
         void setMemberPersistence(const char * name, bool persistence);
@@ -1724,6 +1748,7 @@ typedef void * FECS_KLParserFunctionRef;
 typedef void(*FECS_LoggingFunc)(const char * message, unsigned int messageLength);
 typedef void(*FECS_CompilerErrorFunc)(unsigned int row, unsigned int col, const char * file, const char * level, const char * desc);
 typedef void(*FECS_StatusFunc)(const char * topic, unsigned int topicLength, const char * message, unsigned int messageLength);
+typedef void(*FECS_SlowOperationFunc)(const char *descCStr, unsigned int descLength );
 typedef const char *(*FECS_GetOperatorSourceCodeFunc)(const char * graphName, const char * opName);
 
 enum FECS_DGPort_Mode
@@ -1737,7 +1762,10 @@ enum FECS_DGPort_Mode
 //=====================================================
 FECS_DECL void FECS_Initialize();
 FECS_DECL void FECS_Finalize();
-FECS_DECL const char * FECS_GetCoreVersion();
+FECS_DECL uint8_t FECS_GetFabricVersionMaj();
+FECS_DECL uint8_t FECS_GetFabricVersionMin();
+FECS_DECL uint8_t FECS_GetFabricVersionRev();
+FECS_DECL const char * FECS_GetFabricVersionStr();
 FECS_DECL const char * FECS_GetSpliceVersion();
 FECS_DECL void FECS_constructClient(FabricCore::Client & client, int guarded, FabricCore::ClientOptimizationType optType);
 FECS_DECL bool FECS_destroyClient(bool force);
@@ -1858,6 +1886,7 @@ FECS_DECL void FECS_Logging_setLogErrorFunc(FECS_LoggingFunc func);
 FECS_DECL void FECS_Logging_setCompilerErrorFunc(FECS_CompilerErrorFunc func);
 FECS_DECL void FECS_Logging_setKLReportFunc(FECS_LoggingFunc func);
 FECS_DECL void FECS_Logging_setKLStatusFunc(FECS_StatusFunc func);
+FECS_DECL void FECS_Logging_setSlowOperationFunc(FECS_SlowOperationFunc func);
 FECS_DECL bool FECS_Logging_hasError();
 FECS_DECL char const * FECS_Logging_getError();
 FECS_DECL void FECS_Logging_clearError();
@@ -1917,6 +1946,8 @@ FECS_DECL char const * FECS_DGGraph_getKLOperatorSourceCode(FECS_DGGraphRef ref,
 FECS_DECL bool FECS_DGGraph_setKLOperatorSourceCode(FECS_DGGraphRef ref, const char * name, const char * sourceCode, const char * entry);
 FECS_DECL void FECS_DGGraph_loadKLOperatorSourceCode(FECS_DGGraphRef ref, const char * name, const char * filePath);
 FECS_DECL void FECS_DGGraph_saveKLOperatorSourceCode(FECS_DGGraphRef ref, const char * name, const char * filePath);
+FECS_DECL bool FECS_DGGraph_isKLOperatorFileBased(FECS_DGGraphRef ref, const char * name);
+FECS_DECL char const * FECS_DGGraph_getKLOperatorFilePath(FECS_DGGraphRef ref, const char * name);
 FECS_DECL void FECS_DGGraph_setKLOperatorFilePath(FECS_DGGraphRef ref, const char * name, const char * filePath, const char * entry);
 FECS_DECL unsigned int FECS_DGGraph_getKLOperatorCount(FECS_DGGraphRef ref, const char * dgNodeName);
 FECS_DECL char const * FECS_DGGraph_getKLOperatorName(FECS_DGGraphRef ref, unsigned int index, const char * dgNodeName);
@@ -1940,10 +1971,13 @@ FECS_DECL bool FECS_DGGraph_setDGNodeDependency(FECS_DGGraphRef ref, const char 
 FECS_DECL bool FECS_DGGraph_removeDGNodeDependency(FECS_DGGraphRef ref, const char * dgNode, const char * dependency);
 FECS_DECL void FECS_DGGraph_getPersistenceDataDict(FECS_DGGraphRef ref, FabricCore::Variant & dict, const FECS_PersistenceInfo * info);
 FECS_DECL char * FECS_DGGraph_getPersistenceDataJSON(FECS_DGGraphRef ref, const FECS_PersistenceInfo * info);
-FECS_DECL bool FECS_DGGraph_setFromPersistenceDataDict(FECS_DGGraphRef ref, const FabricCore::Variant & dict, FECS_PersistenceInfo * info);
-FECS_DECL bool FECS_DGGraph_setFromPersistenceDataJSON(FECS_DGGraphRef ref, const char * json, FECS_PersistenceInfo * info);
+FECS_DECL bool FECS_DGGraph_setFromPersistenceDataDict(FECS_DGGraphRef ref, const FabricCore::Variant & dict, FECS_PersistenceInfo * info, const char * baseFilePath);
+FECS_DECL bool FECS_DGGraph_setFromPersistenceDataJSON(FECS_DGGraphRef ref, const char * json, FECS_PersistenceInfo * info, const char * baseFilePath);
 FECS_DECL bool FECS_DGGraph_saveToFile(FECS_DGGraphRef ref, const char * filePath, const FECS_PersistenceInfo * info);
-FECS_DECL bool FECS_DGGraph_loadFromFile(FECS_DGGraphRef ref, const char * filePath, FECS_PersistenceInfo * info);
+FECS_DECL bool FECS_DGGraph_loadFromFile(FECS_DGGraphRef ref, const char * filePath, FECS_PersistenceInfo * info, bool asReferenced);
+FECS_DECL bool FECS_DGGraph_reloadFromFile(FECS_DGGraphRef ref, FECS_PersistenceInfo * info);
+FECS_DECL bool FECS_DGGraph_isReferenced(FECS_DGGraphRef ref);
+FECS_DECL char const * FECS_DGGraph_getReferencedFilePath(FECS_DGGraphRef ref);
 FECS_DECL void FECS_DGGraph_setMemberPersistence(FECS_DGGraphRef ref, const char * name, bool persistence);
 
 FECS_DECL FECS_DGPortRef FECS_DGPort_copy(FECS_DGPortRef ref);
@@ -2000,6 +2034,9 @@ namespace FabricSplice
 
   // a function to receive information from a KL status message
   typedef FECS_StatusFunc StatusFunc;
+
+  // a function to be called when slow operations start or finish
+  typedef FECS_SlowOperationFunc SlowOperationFunc;
 
   // a data set providing all manipulation data
   // typedef FECS_ManipulationData ManipulationData;
@@ -2064,9 +2101,30 @@ namespace FabricSplice
     Exception::MaybeThrow();
   }
 
-  inline const char * GetCoreVersion()
+  inline uint8_t GetFabricVersionMaj()
   {
-    const char * result = FECS_GetCoreVersion();
+    uint8_t result = FECS_GetFabricVersionMaj();
+    Exception::MaybeThrow();
+    return result;
+  }
+
+  inline uint8_t GetFabricVersionMin()
+  {
+    uint8_t result = FECS_GetFabricVersionMin();
+    Exception::MaybeThrow();
+    return result;
+  }
+
+  inline uint8_t GetFabricVersionRev()
+  {
+    uint8_t result = FECS_GetFabricVersionRev();
+    Exception::MaybeThrow();
+    return result;
+  }
+
+  inline const char *GetFabricVersionStr()
+  {
+    const char *result = FECS_GetFabricVersionStr();
     Exception::MaybeThrow();
     return result;
   }
@@ -3479,6 +3537,12 @@ namespace FabricSplice
       FECS_Logging_setKLStatusFunc(func); 
     }
 
+    // sets the callback for KL queueStatusMessage statements
+    static void setSlowOperationFunc(SlowOperationFunc func)
+    {
+      FECS_Logging_setSlowOperationFunc(func); 
+    }
+
     // enable timers
     static void enableTimers()
     {
@@ -3531,19 +3595,19 @@ namespace FabricSplice
     class AutoTimer
     {
     public:
-      AutoTimer(const char * name)
+      AutoTimer(std::string const &name)
       {
         mName = name;
-        Logging::startTimer(mName);
+        Logging::startTimer(mName.c_str());
       }
 
       ~AutoTimer()
       {
-        Logging::stopTimer(mName);
+        Logging::stopTimer(mName.c_str());
       }
 
     private:
-      const char * mName;
+      std::string mName;
     };        
   };
 
@@ -4285,6 +4349,22 @@ namespace FabricSplice
       Exception::MaybeThrow();
     }
 
+    // returns true if the KL operator is using a file
+    bool isKLOperatorFileBased(const char * name)
+    {
+      bool result = FECS_DGGraph_isKLOperatorFileBased(mRef, name);
+      Exception::MaybeThrow();
+      return result;
+    }
+
+    // gets the filepath of a specific FabricCore::DGOperator
+    char const * getKLOperatorFilePath(const char * name)
+    {
+      char const * result = FECS_DGGraph_getKLOperatorFilePath(mRef, name);
+      Exception::MaybeThrow();
+      return result;
+    }
+
     // loads the content of the file and sets the code
     void setKLOperatorFilePath(const char * name, const char * filePath, const char * entry = NULL)
     {
@@ -4536,17 +4616,17 @@ namespace FabricSplice
     }
 
     // constructs the node based on a variant dict
-    bool setFromPersistenceDataDict(const FabricCore::Variant & dict, PersistenceInfo * info = NULL)
+    bool setFromPersistenceDataDict(const FabricCore::Variant & dict, PersistenceInfo * info = NULL, const char * baseFilePath = NULL)
     {
-      bool result = FECS_DGGraph_setFromPersistenceDataDict(mRef, dict, info);
+      bool result = FECS_DGGraph_setFromPersistenceDataDict(mRef, dict, info, baseFilePath);
       Exception::MaybeThrow();
       return result;
     }
 
     // constructs the node based on a JSON string
-    bool setFromPersistenceDataJSON(const std::string & json, PersistenceInfo * info = NULL)
+    bool setFromPersistenceDataJSON(const std::string & json, PersistenceInfo * info = NULL, const char * baseFilePath = NULL)
     {
-      bool result = FECS_DGGraph_setFromPersistenceDataJSON(mRef, json.c_str(), info);
+      bool result = FECS_DGGraph_setFromPersistenceDataJSON(mRef, json.c_str(), info, baseFilePath);
       Exception::MaybeThrow();
       return result;
     }
@@ -4560,9 +4640,33 @@ namespace FabricSplice
     }
 
     // constructs the node based on a persisted JSON file
-    bool loadFromFile(const char * filePath, PersistenceInfo * info = NULL)
+    bool loadFromFile(const char * filePath, PersistenceInfo * info = NULL, bool asReferenced = false)
     {
-      bool result = FECS_DGGraph_loadFromFile(mRef, filePath, info);
+      bool result = FECS_DGGraph_loadFromFile(mRef, filePath, info, asReferenced);
+      Exception::MaybeThrow();
+      return result;
+    }
+
+    // reloads an already referenced graph from file
+    bool reloadFromFile(PersistenceInfo * info = NULL)
+    {
+      bool result = FECS_DGGraph_reloadFromFile(mRef, info);
+      Exception::MaybeThrow();
+      return result;
+    }
+
+    // returns true if this graph is referenced from a file
+    bool isReferenced()
+    {
+      bool result = FECS_DGGraph_isReferenced(mRef);
+      Exception::MaybeThrow();
+      return result;
+    }
+
+    // returns the splice file path referenced by this graph
+    const char * getReferencedFilePath()
+    {
+      const char * result = FECS_DGGraph_getReferencedFilePath(mRef);
       Exception::MaybeThrow();
       return result;
     }
