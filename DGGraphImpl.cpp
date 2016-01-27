@@ -1,4 +1,4 @@
-// Copyright 2010-2013 Fabric Engine Inc. All rights reserved.
+// Copyright (c) 2010-2016, Fabric Software Inc. All rights reserved.
 
 #include "DGGraphImpl.h"
 #include "SceneManagementImpl.h"
