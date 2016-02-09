@@ -157,11 +157,12 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
     loadExtension("Math");
     loadExtension("Geometry");
     loadExtension("Singletons");
-    loadExtension("InlineDrawing");
-    loadExtension("Parameters");
     loadExtension("Manipulation");
+    loadExtension("Parameters");
     loadExtension("FileIO");
     loadExtension("Util");
+    loadExtension("InlineDrawing");
+    loadExtension("RTR2");
     loadExtension("FabricInterfaces");
 
     // define the singletons scope
