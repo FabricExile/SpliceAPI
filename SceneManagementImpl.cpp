@@ -29,21 +29,6 @@ void SceneManagementImpl::drawOpenGL(FabricCore::RTVal & drawContext)
   }
 }
 
-void SceneManagementImpl::draw(FabricCore::RTVal & drawContext, std::vector<FabricCore::RTVal> &params)
-{
-  if(sInError)
-    return;
-  try
-  {
-    //DGGraphImpl::sDrawingScope.callMethod("", "draw", 1, &drawContext);
-    DGGraphImpl::sMayaToRTRCallback.callMethod("", "render", 4, &params[0]);   
-  }
-  catch(FabricCore::Exception e)
-  {
-  }
-}
-
-
 void SceneManagementImpl::setErrorStatus(bool inError)
 {
   sInError = inError;

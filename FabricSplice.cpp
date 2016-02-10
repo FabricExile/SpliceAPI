@@ -1173,13 +1173,6 @@ void FECS_SceneManagement_drawOpenGL(FabricCore::RTVal & drawContext)
   FECS_CATCH_VOID
 }
 
-void FECS_SceneManagement_draw(FabricCore::RTVal &drawContext, std::vector<FabricCore::RTVal> &params)
-{
-  FECS_TRY_CLEARERROR
-  SceneManagementImpl::draw(drawContext, params);
-  FECS_CATCH_VOID
-}
-
 // bool FECS_SceneManagement_raycast(FabricCore::RTVal & raycastContext, FECS_DGPortRef & portRef)
 // {
 //   FECS_TRY_CLEARERROR

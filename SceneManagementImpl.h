@@ -42,9 +42,6 @@ namespace FabricSpliceImpl
       /// draw all drawable ports
       static void drawOpenGL(FabricCore::RTVal & drawContext);
 
-      /// draw all drawable ports
-      static void draw(FabricCore::RTVal &drawContext, std::vector<FabricCore::RTVal> &params);
-
       /// raycast against all raycastable objects
       // static bool raycast(FabricCore::RTVal & raycastContext, DGPortImplPtr & port);
 
