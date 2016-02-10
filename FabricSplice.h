@@ -1690,6 +1690,7 @@ Class Outline
 #include <limits.h>
 #include <stdlib.h>
 #include <FabricCore.h>
+#include <vector>
 
 // C typedefs
 //=====================================================
@@ -1906,6 +1907,7 @@ FECS_DECL char const * FECS_Logging_getTimerName(unsigned int index);
 // FECS_DECL void FECS_SceneManagement_setManipulationFunc(FECS_ManipulationFunc func);
 FECS_DECL bool FECS_SceneManagement_hasRenderableContent();
 FECS_DECL void FECS_SceneManagement_drawOpenGL(FabricCore::RTVal & drawContext);
+FECS_DECL void FECS_SceneManagement_draw(FabricCore::RTVal &drawContext, std::vector<FabricCore::RTVal> &params);
 // FECS_DECL bool FECS_SceneManagement_raycast(FabricCore::RTVal & raycastContext, FECS_DGPortRef & portRef);
 
 FECS_DECL void FECS_Scripting_parseScriptingArguments(const char * action, const char * reference, const char * data, const char * auxiliary, FabricCore::Variant & result);
@@ -4728,6 +4730,16 @@ namespace FabricSplice
     static void drawOpenGL(FabricCore::RTVal & drawContext)
     {
       FECS_SceneManagement_drawOpenGL(drawContext);
+      Exception::MaybeThrow();
+    }
+
+    // draw all drawable ports
+    // ensure to only call this with a valid
+    // OpenGL context set, otherwise it might
+    // cause instabilities
+    static void draw(FabricCore::RTVal &drawContext, std::vector<FabricCore::RTVal> &params)
+    {
+      FECS_SceneManagement_draw(drawContext, params);
       Exception::MaybeThrow();
     }
 

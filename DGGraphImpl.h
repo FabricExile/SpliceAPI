@@ -415,6 +415,7 @@ namespace FabricSpliceImpl
     static unsigned int sInstanceCount;
     static FabricCore::Client * sClient;
     static FabricCore::RTVal sDrawingScope;
+    static FabricCore::RTVal sMayaToRTRCallback;
     static bool sClientOwnedByGraph;
     static stringMap sClientRTs;
     static std::vector<DGGraphImpl*> sAllDGGraphs;

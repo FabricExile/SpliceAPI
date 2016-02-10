@@ -22,39 +22,42 @@ namespace FabricSpliceImpl
 
   class SceneManagementImpl
   {
-  public:
+    public:
 
-    // /// sets the callback for manipulation
-    // static void setManipulationFunc(ManipulationFunc func);
+      // /// sets the callback for manipulation
+      // static void setManipulationFunc(ManipulationFunc func);
 
-    // /// fires the manipulation callback
-    // static void callManipulationFunc(ManipulationData * data);
+      // /// fires the manipulation callback
+      // static void callManipulationFunc(ManipulationData * data);
 
-    /// returns true if a type is manipulatable
-    /// this essentially checks if a the type has a method with 
-    /// the following notation: 
-    /// function Integer CustomType.manipulate!(String prefix, ManipulationContext context, io ManipulationResult result)
-    // static bool isKLTypeManipulatable(std::string name);
+      /// returns true if a type is manipulatable
+      /// this essentially checks if a the type has a method with 
+      /// the following notation: 
+      /// function Integer CustomType.manipulate!(String prefix, ManipulationContext context, io ManipulationResult result)
+      // static bool isKLTypeManipulatable(std::string name);
 
-    /// returns true if there is anything to render
-    static bool hasRenderableContent();
+      /// returns true if there is anything to render
+      static bool hasRenderableContent();
 
-    /// draw all drawable ports
-    static void drawOpenGL(FabricCore::RTVal & drawContext);
+      /// draw all drawable ports
+      static void drawOpenGL(FabricCore::RTVal & drawContext);
 
-    /// raycast against all raycastable objects
-    // static bool raycast(FabricCore::RTVal & raycastContext, DGPortImplPtr & port);
+      /// draw all drawable ports
+      static void draw(FabricCore::RTVal &drawContext, std::vector<FabricCore::RTVal> &params);
 
-    /// resets all cached data
-    // static void reset();
+      /// raycast against all raycastable objects
+      // static bool raycast(FabricCore::RTVal & raycastContext, DGPortImplPtr & port);
 
-    /// set error status
-    static void setErrorStatus(bool inError);
+      /// resets all cached data
+      // static void reset();
 
-  private:
-    // static ManipulationFunc sManipulationFunc;
-    // static std::map<std::string, int> sManipulatableMap;
-    static bool sInError;
+      /// set error status
+      static void setErrorStatus(bool inError);
+
+    private:
+      // static ManipulationFunc sManipulationFunc;
+      // static std::map<std::string, int> sManipulatableMap;
+      static bool sInError;
   };
 }
 

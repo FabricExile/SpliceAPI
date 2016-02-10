@@ -23,6 +23,7 @@ bool DGGraphImpl::sDGCheckRequired = false;
 unsigned int DGGraphImpl::sInstanceCount = 0;
 FabricCore::Client * DGGraphImpl::sClient = NULL;
 FabricCore::RTVal DGGraphImpl::sDrawingScope;
+FabricCore::RTVal DGGraphImpl::sMayaToRTRCallback;
 bool DGGraphImpl::sClientOwnedByGraph = false;
 stringMap DGGraphImpl::sClientRTs;
 std::vector<DGGraphImpl*> DGGraphImpl::sAllDGGraphs;
@@ -167,6 +168,7 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
 
     // define the singletons scope
     sDrawingScope = FabricCore::RTVal::Create(*sClient, "InlineDrawingScope", 0, 0);
+    sMayaToRTRCallback = FabricCore::RTVal::Create(*sClient, "MayaToRTRCallback", 0, 0);
   }
   return (const FabricCore::Client *)sClient;
 }
@@ -187,6 +189,7 @@ bool DGGraphImpl::destroyClient(bool force)
     if(sClient != NULL)
     {
       sDrawingScope.invalidate();
+      sMayaToRTRCallback.invalidate();
       sClient->invalidate();
       delete(sClient);
       sClient = NULL;
