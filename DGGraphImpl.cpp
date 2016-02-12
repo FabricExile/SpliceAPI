@@ -1,4 +1,4 @@
-// Copyright 2010-2013 Fabric Engine Inc. All rights reserved.
+// Copyright (c) 2010-2016, Fabric Software Inc. All rights reserved.
 
 #include "DGGraphImpl.h"
 #include "SceneManagementImpl.h"
@@ -35,7 +35,14 @@ FabricCore::ClientLicenseType DGGraphImpl::sCoreLicenseType = UINT8_MAX;
 stringVector DGGraphImpl::sExtFolders;
 DGGraphImpl::GetOperatorSourceCodeFunc DGGraphImpl::sGetOperatorSourceCodeFunc = NULL;
 
-void klReportFunc(void *userdata, FabricCore::ReportSource source, FabricCore::ReportLevel level, char const *reportData, uint32_t reportLength) {
+void klReportFunc(
+  void *userdata,
+  FabricCore::ReportSource source,
+  FabricCore::ReportLevel level,
+  char const *reportData,
+  uint32_t reportLength
+  )
+{
   std::string message(reportData);
   LoggingFunc reportFunc = LoggingImpl::getKLReportFunc();
   if ( reportFunc == NULL )
@@ -44,7 +51,9 @@ void klReportFunc(void *userdata, FabricCore::ReportSource source, FabricCore::R
     (*reportFunc)(message.c_str(), message.length());
 }
 
-void klStatusFunc(void *userdata, char const *destData, uint32_t destLength, char const *payloadData, uint32_t payloadLength) {
+void klStatusFunc(void *userdata, char const *destData, uint32_t destLength,
+  char const *payloadData, uint32_t payloadLength)
+{
   std::string topic(destData, destLength);
   std::string message(payloadData, payloadLength);
   StatusFunc statusFunc = LoggingImpl::getKLStatusFunc();
@@ -54,13 +63,18 @@ void klStatusFunc(void *userdata, char const *destData, uint32_t destLength, cha
     (*statusFunc)(topic.c_str(), topic.length(), message.c_str(), message.length());
 }
 
-void klSlowOperationFunc(void *userdata, char const *descCStr, uint32_t descLength) {
+void klSlowOperationFunc(
+  void *userdata,
+  char const *descCStr, uint32_t descLength
+  )
+{
   SlowOperationFunc slowOperationFunc = LoggingImpl::getSlowOperationFunc();
   if ( slowOperationFunc )
     (*slowOperationFunc)( descCStr, descLength );
 }
 
-const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore::ClientOptimizationType optType) {
+const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore::ClientOptimizationType optType)
+{
   if(sClient == NULL)
   {
     sClientOwnedByGraph = false;
@@ -143,12 +157,11 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
     loadExtension("Math");
     loadExtension("Geometry");
     loadExtension("Singletons");
-    loadExtension("Manipulation");
+    loadExtension("InlineDrawing");
     loadExtension("Parameters");
+    loadExtension("Manipulation");
     loadExtension("FileIO");
     loadExtension("Util");
-    loadExtension("InlineDrawing");
-    loadExtension("RTR2");
     loadExtension("FabricInterfaces");
 
     // define the singletons scope
@@ -157,11 +170,13 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
   return (const FabricCore::Client *)sClient;
 }
 
-void DGGraphImpl::setLicenseType(FabricCore::ClientLicenseType licenseType) {
+void DGGraphImpl::setLicenseType(FabricCore::ClientLicenseType licenseType)
+{
   sCoreLicenseType = licenseType;
 }
 
-bool DGGraphImpl::destroyClient(bool force) {
+bool DGGraphImpl::destroyClient(bool force)
+{
   if(sInstanceCount == 0 || force)
   {
     KLParserImpl::resetAll();
@@ -179,7 +194,11 @@ bool DGGraphImpl::destroyClient(bool force) {
   return false;
 }
 
-DGGraphImpl::DGGraphImpl(const std::string & name, bool guarded, FabricCore::ClientOptimizationType optType) {
+DGGraphImpl::DGGraphImpl(
+  const std::string & name,
+  bool guarded, 
+  FabricCore::ClientOptimizationType optType
+) {
 
   setName(name);
   mOriginalName = getName();
@@ -224,11 +243,13 @@ DGGraphImpl::DGGraphImpl(const std::string & name, bool guarded, FabricCore::Cli
   LoggingImpl::log("DGGraph '"+getName()+"' created.");
 }
 
-DGGraphImplPtr DGGraphImpl::construct(const std::string & name, bool guarded, FabricCore::ClientOptimizationType optType) {
+DGGraphImplPtr DGGraphImpl::construct(const std::string & name, bool guarded, FabricCore::ClientOptimizationType optType)
+{
   return DGGraphImplPtr(new DGGraphImpl(name, guarded, optType));
 }
 
-DGGraphImpl::~DGGraphImpl() {
+DGGraphImpl::~DGGraphImpl()
+{
   clear();
   LoggingImpl::log("DGGraph '"+getName()+"' destroyed.");
 
@@ -257,7 +278,8 @@ DGGraphImpl::~DGGraphImpl() {
   requireDGCheck();
 }
 
-void DGGraphImpl::clear(std::string * errorOut) {
+void DGGraphImpl::clear(std::string * errorOut)
+{
   mIsClearing = true;
 
   mLoadedExtensions.clear();
@@ -292,19 +314,24 @@ void DGGraphImpl::clear(std::string * errorOut) {
   requireEvaluate();
 }
 
-const FabricCore::Client * DGGraphImpl::getClient() {
+const FabricCore::Client * DGGraphImpl::getClient()
+{
   return sClient;
 }
 
-void * DGGraphImpl::getUserPointer() {
+void * DGGraphImpl::getUserPointer()
+{
   return mUserPointer;
 }
 
-void DGGraphImpl::setUserPointer(void * data) {
+void DGGraphImpl::setUserPointer(void * data)
+{
   mUserPointer = data;
 }
 
-bool DGGraphImpl::setName(const std::string & name) {
+
+bool DGGraphImpl::setName(const std::string & name)
+{
   // start with an empty name
   // this is important for the name map
   // to generate a unique name
