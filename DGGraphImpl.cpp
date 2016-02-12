@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2016, Fabric Software Inc. All rights reserved.
+// Copyright 2010-2013 Fabric Engine Inc. All rights reserved.
 
 #include "DGGraphImpl.h"
 #include "SceneManagementImpl.h"
@@ -158,6 +158,7 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
     loadExtension("Geometry");
     loadExtension("Singletons");
     loadExtension("InlineDrawing");
+    loadExtension("RTR2");
     loadExtension("Parameters");
     loadExtension("Manipulation");
     loadExtension("FileIO");

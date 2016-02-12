@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2016, Fabric Software Inc. All rights reserved.
+// Copyright 2010-2013 Fabric Engine Inc. All rights reserved.
 
 #ifndef __FabricSpliceImpl_OBJECT_H__
 #define __FabricSpliceImpl_OBJECT_H__
