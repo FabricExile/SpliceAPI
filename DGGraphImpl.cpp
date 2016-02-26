@@ -155,15 +155,15 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
 
     // load the extension we will always need
     loadExtension("Math");
+    loadExtension("Util");
+    loadExtension("FileIO");
     loadExtension("Geometry");
     loadExtension("Singletons");
-    loadExtension("InlineDrawing");
-    loadExtension("RTR2");
     loadExtension("Parameters");
     loadExtension("Manipulation");
-    loadExtension("FileIO");
-    loadExtension("Util");
+    loadExtension("InlineDrawing");
     loadExtension("FabricInterfaces");
+    loadExtension("SceneHub");
 
     // define the singletons scope
     sDrawingScope = FabricCore::RTVal::Create(*sClient, "InlineDrawingScope", 0, 0);
