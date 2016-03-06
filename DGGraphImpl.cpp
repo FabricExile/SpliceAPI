@@ -158,7 +158,7 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
     loadExtension("Geometry");
     loadExtension("Singletons");
     loadExtension("InlineDrawing");
-    loadExtension("RTR2");
+    loadExtension("SceneHub");
     loadExtension("Parameters");
     loadExtension("Manipulation");
     loadExtension("FileIO");
