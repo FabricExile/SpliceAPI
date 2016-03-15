@@ -26,7 +26,12 @@ std::string StringUtilityImpl::getUniqueString(const std::string & name, const s
 stringVector StringUtilityImpl::splitString(const std::string & name, char delimiter, bool stripSpaces)
 {
   std::stringstream ss(name);
-  std::string item;
+
+  // [andrew 20151111] when running under mayapy there is an invalid free() the first time getline()
+  // is called unless 'item' has a non-empty value, i can only assume this is some kind of compiler
+  // issue
+  std::string item("empty");
+
   stringVector result;
   while(std::getline(ss, item, delimiter))
   {
