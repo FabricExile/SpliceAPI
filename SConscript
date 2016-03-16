@@ -178,7 +178,7 @@ staticLibrary = staticEnv.Library(
   staticEnv.Glob('static/*.cpp')
 )
 
-if FABRIC_BUILD_OS == 'Linux' or FABRIC_BUILD_OS == 'Darwin':
+if FABRIC_BUILD_OS == 'Linux':
   env.AddPostAction(
     staticLibrary,
     [
@@ -190,6 +190,22 @@ if FABRIC_BUILD_OS == 'Linux' or FABRIC_BUILD_OS == 'Darwin':
       [
         'ln', '-snf',
         '.'.join(['lib' + staticLibNameBase, 'a', majMinVer]),
+        STAGE_DIR.Dir('lib').File('.'.join(['lib' + staticLibNameBase, 'a'])),
+        ]
+      ]
+    )
+if FABRIC_BUILD_OS == 'Darwin':
+  env.AddPostAction(
+    staticLibrary,
+    [
+      [
+        'ln', '-snf',
+        '.'.join(['lib' + staticLibNameBase, majMinRevVer, 'a']),
+        STAGE_DIR.Dir('lib').File('.'.join(['lib' + staticLibNameBase, majMinVer, 'a'])),
+        ],
+      [
+        'ln', '-snf',
+        '.'.join(['lib' + staticLibNameBase, majMinVer, 'a']),
         STAGE_DIR.Dir('lib').File('.'.join(['lib' + staticLibNameBase, 'a'])),
         ]
       ]
