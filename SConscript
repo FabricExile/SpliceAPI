@@ -178,9 +178,10 @@ staticLibrary = staticEnv.Library(
   staticEnv.Glob('static/*.cpp')
 )
 
+installedStaticLibrary = staticEnv.Install(STAGE_DIR.Dir('lib'), staticLibrary)
 if FABRIC_BUILD_OS == 'Linux':
   env.AddPostAction(
-    staticLibrary,
+    installedStaticLibrary,
     [
       [
         'ln', '-snf',
@@ -196,7 +197,7 @@ if FABRIC_BUILD_OS == 'Linux':
     )
 if FABRIC_BUILD_OS == 'Darwin':
   env.AddPostAction(
-    staticLibrary,
+    installedStaticLibrary,
     [
       [
         'ln', '-snf',
@@ -210,8 +211,6 @@ if FABRIC_BUILD_OS == 'Darwin':
         ]
       ]
     )
-
-installedStaticLibrary = staticEnv.Install(STAGE_DIR.Dir('lib'), staticLibrary)
 
 sharedEnv = env.Clone()
 sharedEnv.VariantDir(sharedEnv.Dir('shared'), sharedEnv.Dir('.').srcnode())
@@ -236,9 +235,11 @@ sharedLibrary = sharedEnv.SharedLibrary(
   sharedEnv.File(sharedLibName),
   sharedEnv.Glob('shared/*.cpp')
 )
+
+installedSharedLibrary = sharedEnv.Install(STAGE_DIR.Dir('lib'), sharedLibrary)
 if FABRIC_BUILD_OS == 'Linux':
   env.AddPostAction(
-    sharedLibrary,
+    installedSharedLibrary,
     [
       [
         'ln', '-snf',
@@ -254,7 +255,7 @@ if FABRIC_BUILD_OS == 'Linux':
     )
 if FABRIC_BUILD_OS == 'Darwin':
   env.AddPostAction(
-    sharedLibrary,
+    installedSharedLibrary,
     [
       [
         'ln', '-snf',
@@ -268,8 +269,6 @@ if FABRIC_BUILD_OS == 'Darwin':
         ]
       ]
     )
-
-installedSharedLibrary = sharedEnv.Install(STAGE_DIR.Dir('lib'), sharedLibrary)
 
 spliceDistHeader = staticEnv.Install(STAGE_DIR.Dir('include'), 'FabricSplice.h')
 Export('spliceDistHeader')
