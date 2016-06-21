@@ -103,7 +103,7 @@ void FECS_constructClient(FabricCore::Client & client, int guarded, FabricCore::
   if(currentClient == NULL)
     return;
   client = *currentClient;
-  LoggingImpl::log("Constructed FabricSplice Client.");
+  //LoggingImpl::log("Constructed FabricSplice Client.");
   FECS_CATCH_VOID
 }
 
