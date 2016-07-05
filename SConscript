@@ -236,7 +236,10 @@ sharedLibrary = sharedEnv.SharedLibrary(
   sharedEnv.Glob('shared/*.cpp')
 )
 
-installedSharedLibrary = sharedEnv.Install(STAGE_DIR.Dir('lib'), sharedLibrary)
+if FABRIC_BUILD_OS == 'Windows':
+  installedSharedLibrary = sharedEnv.Install(STAGE_DIR.Dir('lib'), sharedLibrary[2:])
+else:
+  installedSharedLibrary = sharedEnv.Install(STAGE_DIR.Dir('lib'), sharedLibrary)
 if FABRIC_BUILD_OS == 'Linux':
   env.AddPostAction(
     installedSharedLibrary,
