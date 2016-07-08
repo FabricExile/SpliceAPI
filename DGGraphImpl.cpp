@@ -3207,28 +3207,28 @@ std::string DGGraphImpl::resolveRelativePath(const std::string & baseFile, const
 std::string DGGraphImpl::resolveEnvironmentVariables(const std::string text)
 {
   std::string output;
-  for(unsigned int i=0;i<text.length()-1;i++)
-  {
-    if(text[i] == '$' && text[i+1] == '{')
-    {
-      size_t closePos = text.find('}', i);
-      if(closePos != std::string::npos)
-      {
-        std::string envVarName = text.substr(i+2, closePos - i - 2);
-        const char * envVarValue = getenv(envVarName.c_str());
-        if(envVarValue != NULL)
-        {
-          output += envVarValue;
-          i = (unsigned int)closePos;
-          continue;
-        }
-      }
-    }
-    output += text[i];
-  }
-
   if(text.length() > 0)
   {
+    for(unsigned int i=0;i<text.length()-1;i++)
+    {
+      if(text[i] == '$' && text[i+1] == '{')
+      {
+        size_t closePos = text.find('}', i);
+        if(closePos != std::string::npos)
+        {
+          std::string envVarName = text.substr(i+2, closePos - i - 2);
+          const char * envVarValue = getenv(envVarName.c_str());
+          if(envVarValue != NULL)
+          {
+            output += envVarValue;
+            i = (unsigned int)closePos;
+            continue;
+          }
+        }
+      }
+      output += text[i];
+    }
+
     if(text[text.length()-1] != '}')
       output += text[text.length()-1];
   }
