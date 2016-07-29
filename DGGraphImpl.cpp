@@ -721,7 +721,6 @@ bool DGGraphImpl::evaluate(
         FabricCore::LockType_Shared:
         FabricCore::LockType_Exclusive
         );
-    mEvalContext.callMethod("", "_clear", 0, 0);
   }
   catch(FabricCore::Exception e)
   {
