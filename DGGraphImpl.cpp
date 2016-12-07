@@ -111,7 +111,8 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
     options.numExtsToLoad = 0;
     options.slowOperationCallback = &klSlowOperationFunc;
 
-    sClient = new FabricCore::Client(&klReportFunc, 0, &options);
+    sClient = new FabricCore::Client();
+    *sClient = FabricCore::Client::GetSingleton(&klReportFunc, 0, &options);
 
     // setup KL reporting
     sClient->setReportCallback(&klReportFunc, NULL);
