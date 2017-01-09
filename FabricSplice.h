@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2016, Fabric Software Inc. All rights reserved.
+// Copyright (c) 2010-2017 Fabric Software Inc. All rights reserved.
 
 // NOTE: The Fabric Splice API will be deprecated in 2.0. 
 // For new integrations please just use the FabricCore API 
