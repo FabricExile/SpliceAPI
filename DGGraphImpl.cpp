@@ -170,6 +170,8 @@ const FabricCore::Client * DGGraphImpl::constructClient(bool guarded, FabricCore
 
     // define the singletons scope
     sDrawingScope = FabricCore::RTVal::Create(*sClient, "InlineDrawingScope", 0, 0);
+    //FabricCore::RTVal::Create(*sClient, "Tool::WRenderEngineInlineDrawingSetup", 0, 0);
+
   }
   return (const FabricCore::Client *)sClient;
 }
