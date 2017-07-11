@@ -55,12 +55,12 @@ if FABRIC_BUILD_OS == "Darwin":
   for flags in [spliceDebugFlags, spliceReleaseFlags]:
     flags['CCFLAGS'] += [
       '-fvisibility=hidden',
-      '-mmacosx-version-min=10.7',
+      '-mmacosx-version-min=10.9',
       '-stdlib=libstdc++',
       '-fno-omit-frame-pointer',
       ]      
     flags['LINKFLAGS'] += [
-      '-mmacosx-version-min=10.7',
+      '-mmacosx-version-min=10.9',
       '-stdlib=libstdc++',
       ]
 
@@ -152,6 +152,9 @@ Export('boostFlags')
 parentEnv.MergeFlags(boostFlags)
 
 env = parentEnv.Clone()
+if FABRIC_BUILD_OS == 'Darwin':
+  for var in ['CCFLAGS', 'CXXFLAGS']:
+    env[var] = filter(lambda opt: opt not in ['-Werror'], env[var])
 
 libNameBase = 'FabricSplice'
 majMinVer = os.path.splitext(FABRIC_SPLICE_VERSION)[0]
