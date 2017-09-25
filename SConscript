@@ -37,12 +37,12 @@ if FABRIC_BUILD_OS == "Windows":
   spliceDebugFlags = {
     'CCFLAGS': baseCPPFlags + ['/Od', '/Z7', '/MTd', '/DEBUG'],
     'CPPDEFINES': baseCPPDefines + ['_ITERATOR_DEBUG_LEVEL=2', '_DEBUG', 'DEBUG'],
-    'LINKFLAGS': baseLinkFlags + ['/DEBUG', '/NODEFAULTLIB:LIBCMT'],
+    'LINKFLAGS': baseLinkFlags + ['/DEBUG'], #, '/NODEFAULTLIB:LIBCMT'],
   }
   spliceReleaseFlags = {
     'CCFLAGS': baseCPPFlags + ['/Ox', '/MT'],
     'CPPDEFINES': baseCPPDefines + ['NDEBUG'],
-    'LINKFLAGS': baseLinkFlags + ['/NODEFAULTLIB:LIBCMTD'],
+    'LINKFLAGS': baseLinkFlags, # + ['/NODEFAULTLIB:LIBCMTD'],
   }
   if FABRIC_BUILD_ARCH.endswith('64'):
     baseCPPDefines.append( 'WIN64' )
