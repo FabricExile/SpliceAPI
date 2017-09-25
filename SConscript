@@ -134,28 +134,28 @@ if not os.path.exists(BOOST_DIR):
   print "Refer to README.txt for more information."
   sys.exit(1)
 
-boostFlags = {
+spliceBoostFlags = {
   'CPPPATH': [os.path.join(BOOST_DIR, 'include')],
   'LIBPATH': [os.path.join(BOOST_DIR, 'lib')],
 }
 if FABRIC_BUILD_OS == 'Windows':
   if FABRIC_BUILD_TYPE == 'Debug':
-    boostFlags['LIBS'] = [
-      'libboost_thread-vc120-mt-sgd-1_55.lib',
-      'libboost_system-vc120-mt-sgd-1_55.lib',
-      'libboost_filesystem-vc120-mt-sgd-1_55.lib'
+    spliceBoostFlags['LIBS'] = [
+      'libboost_thread-vc%s-mt-sgd-1_55.lib' % MSVC_VERSION.replace('.', ''),
+      'libboost_system-vc%s-mt-sgd-1_55.lib' % MSVC_VERSION.replace('.', ''),
+      'libboost_filesystem-vc%s-mt-sgd-1_55.lib' % MSVC_VERSION.replace('.', '')
       ]
   else:
-    boostFlags['LIBS'] = [
-      'libboost_thread-vc120-mt-s-1_55.lib',
-      'libboost_system-vc120-mt-s-1_55.lib',
-      'libboost_filesystem-vc120-mt-s-1_55.lib'
+    spliceBoostFlags['LIBS'] = [
+      'libboost_thread-vc%s-mt-s-1_55.lib' % MSVC_VERSION.replace('.', ''),
+      'libboost_system-vc%s-mt-s-1_55.lib' % MSVC_VERSION.replace('.', ''),
+      'libboost_filesystem-vc%s-mt-s-1_55.lib' % MSVC_VERSION.replace('.', '')
       ]
 else:
-  boostFlags['LIBS'] = ['boost_thread','boost_system','boost_filesystem']
-Export('boostFlags')
+  spliceBoostFlags['LIBS'] = ['boost_thread','boost_system','boost_filesystem']
+Export('spliceBoostFlags')
 
-parentEnv.MergeFlags(boostFlags)
+parentEnv.MergeFlags(spliceBoostFlags)
 
 env = parentEnv.Clone()
 if FABRIC_BUILD_OS == 'Darwin':
