@@ -13,8 +13,14 @@ Import(
   'FABRIC_BUILD_TYPE',
   'FABRIC_BUILD_OS',
   'FABRIC_BUILD_ARCH',
-  'BOOST_DIR'
+  'BOOST_DIR',
+  'MSVC_VERSION_FIRST',
+  'MSVC_VERSION'
   )
+
+msvc_suffix = ''
+if FABRIC_BUILD_OS == 'Windows':
+  msvc_suffix = 'VS%s' % MSVC_VERSION[0:2]
 
 # configuration flags
 if FABRIC_BUILD_OS == "Windows":
@@ -161,7 +167,7 @@ majMinVer = os.path.splitext(FABRIC_SPLICE_VERSION)[0]
 majMinRevVer = FABRIC_SPLICE_VERSION
 
 if FABRIC_BUILD_OS == 'Windows':
-  libNameBase = '-'.join([libNameBase, majMinVer])
+  libNameBase = '-'.join([libNameBase, majMinVer, msvc_suffix])
 
 staticEnv = env.Clone()
 staticEnv.VariantDir(staticEnv.Dir('static'), staticEnv.Dir('.').srcnode())
@@ -276,10 +282,12 @@ if FABRIC_BUILD_OS == 'Darwin':
       ]
     )
 
-spliceDistHeader = staticEnv.Install(STAGE_DIR.Dir('include'), 'FabricSplice.h')
-Export('spliceDistHeader')
+installedFiles = [installedStaticLibrary, installedSharedLibrary]
 
-installedFiles = [installedStaticLibrary, installedSharedLibrary, spliceDistHeader]
+if MSVC_VERSION == '12.0':
+  spliceDistHeader = staticEnv.Install(STAGE_DIR.Dir('include'), 'FabricSplice.h')
+  Export('spliceDistHeader')
+  installedFiles += [spliceDistHeader]
 
 if FABRIC_BUILD_OS == 'Windows':
   installedFiles += sharedEnv.Install(STAGE_DIR.Dir('bin'), sharedLibrary[:2])
@@ -289,8 +297,13 @@ spliceFlags = {
   'LIBS': [installedStaticLibrary],
   'CPPDEFINES': ['_BOOL', 'FECS_STATIC']
 }
-Export('spliceFlags')
 
-alias = env.Alias('spliceapi', installedFiles)
+if MSVC_VERSION == MSVC_VERSION_FIRST:
+  Export('spliceFlags')
+
+locals()['spliceFlags_%s' % msvc_suffix] = spliceFlags
+Export('spliceFlags_%s' % msvc_suffix)
+
+alias = env.Alias('spliceapi'+msvc_suffix, installedFiles)
 spliceData = (alias, installedFiles)
 Return('spliceData')
