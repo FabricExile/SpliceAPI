@@ -304,6 +304,9 @@ if MSVC_VERSION == MSVC_VERSION_FIRST:
 locals()['spliceFlags_%s' % msvc_suffix] = spliceFlags
 Export('spliceFlags_%s' % msvc_suffix)
 
-alias = env.Alias('spliceapi'+msvc_suffix, installedFiles)
+if FABRIC_BUILD_OS == 'Windows':
+  alias = env.Alias('spliceapi'+msvc_suffix, installedFiles)
+else:  
+  alias = env.Alias('spliceapi_base', installedFiles)
 spliceData = (alias, installedFiles)
 Return('spliceData')
