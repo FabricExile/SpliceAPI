@@ -119,13 +119,13 @@ if FABRIC_BUILD_OS == 'Windows':
   parentEnv.Append(LIBS = ['advapi32', 'shell32'])
 
 if BOOST_DIR is None:
-  print "BOOST_DIR not found. Please specify BOOST_DIR."
-  print "Refer to README.txt for more information."
+  print( "BOOST_DIR not found. Please specify BOOST_DIR." )
+  print( "Refer to README.txt for more information." )
   sys.exit(1)
 
 if not os.path.exists(BOOST_DIR):
-  print "BOOST_DIR path invalid: " + BOOST_DIR
-  print "Refer to README.txt for more information."
+  print( "BOOST_DIR path invalid: " + BOOST_DIR )
+  print( "Refer to README.txt for more information." )
   sys.exit(1)
 
 boostFlags = {
