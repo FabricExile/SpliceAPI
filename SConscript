@@ -24,7 +24,7 @@ if FABRIC_BUILD_OS == "Windows":
     '_WIN32_WINNT=0x0600',
   ]
   baseCPPFlags = [
-    '/EHsc', 
+    '/EHa',
     '/wd4624',
   ]
   baseLinkFlags = ['chkstk.obj']
@@ -133,17 +133,18 @@ boostFlags = {
   'LIBPATH': [os.path.join(BOOST_DIR, 'lib')],
 }
 if FABRIC_BUILD_OS == 'Windows':
+  msvcLibSuffix = "".join(parentEnv['MSVC_VERSION'].split('.'))
   if FABRIC_BUILD_TYPE == 'Debug':
     boostFlags['LIBS'] = [
-      'libboost_thread-vc120-mt-sgd-1_55.lib',
-      'libboost_system-vc120-mt-sgd-1_55.lib',
-      'libboost_filesystem-vc120-mt-sgd-1_55.lib'
+      'libboost_thread-vc' + msvcLibSuffix + '-mt-sgd-1_55.lib',
+      'libboost_system-vc' + msvcLibSuffix + '-mt-sgd-1_55.lib',
+      'libboost_filesystem-vc' + msvcLibSuffix + '-mt-sgd-1_55.lib'
       ]
   else:
     boostFlags['LIBS'] = [
-      'libboost_thread-vc120-mt-s-1_55.lib',
-      'libboost_system-vc120-mt-s-1_55.lib',
-      'libboost_filesystem-vc120-mt-s-1_55.lib'
+      'libboost_thread-vc' + msvcLibSuffix + '-mt-s-1_55.lib',
+      'libboost_system-vc' + msvcLibSuffix + '-mt-s-1_55.lib',
+      'libboost_filesystem-vc' + msvcLibSuffix + '-mt-s-1_55.lib'
       ]
 else:
   boostFlags['LIBS'] = ['boost_thread','boost_system','boost_filesystem']
